@@ -1,62 +1,79 @@
 {
   description = "An aria2 Exporter for Prometheus";
 
-  inputs = {
-    nixpkgs.url = "github:nixos/nixpkgs/nixpkgs-unstable";
-    flake-utils.url = "github:numtide/flake-utils";
-  };
+  inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
 
-  outputs = { self, flake-utils, nixpkgs }: {
-    overlay = final: prev: {
-      aria2_exporter = prev.buildGoModule rec {
-        name = "aria2_exporter";
-
-        src = self;
-
-        subPackages = [ "." ];
-
-        vendorSha256 = "1m0s6kp2pj3g54vyb7jzs1whcwyycs7v2p1malm3b8hw2jjp25xf";
-
-        doCheck = false; # no tests
-
-        meta = with prev.lib; {
-          license = licenses.mit;
-          maintainer = with mainatiners; [ sbruder ];
-        };
-      };
-    };
-
-    nixosModules.aria2_exporter = {
-      imports = [ ./module.nix ];
-
-      nixpkgs.overlays = [
-        self.overlay
-      ];
-    };
-  } // flake-utils.lib.eachSystem [ "aarch64-linux" "x86_64-linux" ] (system:
+  outputs =
+    {
+      self,
+      nixpkgs,
+      ...
+    }@inputs:
     let
-      pkgs = import nixpkgs { inherit system; overlays = [ self.overlay ]; };
+      inherit (self) outputs;
+      supportedSystems = [
+        "x86_64-linux"
+        "aarch64-linux"
+      ];
+      forAllSystems = f: nixpkgs.lib.genAttrs supportedSystems (system: (forSystem system f));
+      forSystem =
+        system: f:
+        f rec {
+          inherit system;
+          pkgs = import nixpkgs {
+            inherit system;
+            overlays = [ self.overlays.default ];
+          };
+          lib = pkgs.lib;
+        };
     in
-    rec {
-      packages = {
-        inherit (pkgs) aria2_exporter;
-      };
-
-      defaultPackage = packages.aria2_exporter;
-
-      checks = {
-        integration-test = import ./test.nix {
-          inherit nixpkgs system;
-          inherit (self) nixosModules;
+    {
+      overlays.default = final: prev: {
+        aria2_exporter = final.buildGoModule rec {
+          name = "aria2_exporter";
+          src = self;
+          subPackages = [ "." ];
+          vendorHash = "sha256-4GIzcfnY3FZPDW+RDnvW1SGAbZ41h0Yp3LCMPdum2ic=";
+          doCheck = false;
         };
       };
 
-      # My hydra only has x86_64-linux builders
-      hydraJobs = if pkgs.lib.elem system [ "x86_64-linux" ]
-        then {
-          build = defaultPackage;
-          integration-test = checks.integration-test;
+      nixosModules.aria2_exporter = {
+        imports = [ ./module.nix ];
+        nixpkgs.overlays = [
+          self.overlays.default
+        ];
+      };
+
+      devShells = forAllSystems (
+        { system, pkgs, ... }:
+        {
+          default = pkgs.mkShell {
+            buildInputs = with pkgs; [
+              go
+              gopls
+            ];
+          };
         }
-        else { };
-    });
+      );
+
+      checks = forAllSystems (
+        { system, pkgs, ... }:
+        {
+          integration-test = pkgs.testers.runNixOSTest ./test.nix;
+        }
+      );
+
+      packages = forAllSystems (
+        { system, pkgs, ... }:
+        {
+          inherit (pkgs) aria2_exporter;
+        }
+      );
+
+      hydraJobs = {
+        integration-test = builtins.mapAttrs (_: value: value) outputs.checks;
+        build = builtins.mapAttrs (_: value: value) outputs.packages;
+      };
+    };
 }
