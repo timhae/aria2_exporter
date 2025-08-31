@@ -33,7 +33,7 @@
           name = "aria2_exporter";
           src = self;
           subPackages = [ "." ];
-          vendorHash = "sha256-ab3l5j9MJ18VRwlqvBBNEEPiOjcUqOrhzFLk16ppR1o=";
+          vendorHash = "sha256-x0Ge0C7/5TKgMQHvr+pj4I/9tgdfLjbnZ1oqGGkRXd0=";
           doCheck = false;
         };
       };
