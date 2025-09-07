@@ -19,3 +19,4 @@ jobs:
           title: "chore(deps): update flake lock"
           branch: flake-updates
           delete-branch: true
+          token: ${{ secrets.ARIA2_EXPORTER_UPDATE_ACTION_PR }} # needs to be created by human to trigger action runs
