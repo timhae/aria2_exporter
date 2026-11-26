@@ -1,4 +1,4 @@
-{ pkgs, ... }:
+{ pkgs, config, ... }:
 let
   port = 9578;
   rpcSecret = "integration-test";
@@ -12,7 +12,7 @@ in
       environment.etc."aria2Rpc".text = rpcSecret;
 
       services.aria2_exporter = {
-        inherit rpcSecret;
+        rpcSecretFile = config.nodes.server.services.aria2.rpcSecretFile;
         enable = true;
         listenAddress = ":${toString port}";
       };

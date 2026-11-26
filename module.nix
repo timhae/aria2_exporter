@@ -20,11 +20,12 @@ in
       description = "The RPC endpoint of aria2 aria2_exporter should connect to.";
     };
 
-    rpcSecret = lib.mkOption {
-      type = lib.types.str;
-      default = "";
-      example = "totallysecretsecret";
-      description = "The RPC secret of aria2.";
+    rpcSecretFile = lib.mkOption {
+      type = lib.types.pathWith { inStore = false; absolute = true; };
+      example = "/run/secrets/aria2-rpc-secret";
+      description = ''
+        Path to a file containing the RPC secret of aria2.
+      '';
     };
 
     listenAddress = lib.mkOption {
@@ -42,11 +43,14 @@ in
       environment = {
         ARIA2_EXPORTER_LISTEN_ADDRESS = cfg.listenAddress;
         ARIA2_URL = cfg.rpcUrl;
-        ARIA2_RPC_SECRET = cfg.rpcSecret;
       };
+      script = ''
+        export ARIA2_RPC_SECRET="$(< "$CREDENTIALS_DIRECTORY/rpc-secret")"
+        exec ${cfg.package}/bin/aria2_exporter
+      '';
       serviceConfig = {
-        ExecStart = "${cfg.package}/bin/aria2_exporter";
         Restart = "always";
+        LoadCredential = "rpc-secret:${cfg.rpcSecretFile}";
 
         # Hardening: systemd-analyze --no-pager security aria2_exporter.service
         CapabilityBoundingSet = null;
